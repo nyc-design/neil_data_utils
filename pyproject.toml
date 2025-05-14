@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neil_data_utils"
+version = "0.1.0"
+description = "Helper functions for extracting structured data from JSON and URLs"
+authors = [{ name = "Neil Tapiavala" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+    "tldextract>=3.4.0",
+    "neil-logger @ git+https://github.com/nyc-design/neil_logger.git"
+]
