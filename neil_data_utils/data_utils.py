@@ -130,7 +130,7 @@ class DataUtils:
 
 
     # Function to convert a MongoDB collection to a csv
-    def mongodb_to_csv(self, mongo_uri: str, mongo_db: str, mongo_collection: str, csv_path: str, batch_size: int = 1000, filter_query: dict = None, projection: dict = None) -> None:
+    def mongodb_to_csv(self, csv_path: str, mongo_uri: str, mongo_db: str, mongo_collection: str, batch_size: int = 1000, filter_query: dict = None, projection: dict = None) -> None:
         client = MongoClient(mongo_uri)
         collection = client[mongo_db][mongo_collection]
 
