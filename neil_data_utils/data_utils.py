@@ -5,11 +5,13 @@ import pandas as pd
 from pymongo import MongoClient, UpdateOne
 from pymongo.errors import BulkWriteError
 import math
-
+import ast
+import json
+import logging
 
 class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
-        self.logger = logger or print
+        self.logger = logger or logging.getLogger(__name__)
 
 
     # Function to extract data from a list of responses
@@ -65,6 +67,16 @@ class DataUtils:
 
             if not record:
                 continue
+        
+            for k, v in list(record.items()):
+                if isinstance(v, str) and v.startswith("[") and v.endswith("]"):
+                    try:
+                        record[k] = json.loads(v)
+                    except (json.JSONDecodeError, TypeError):
+                        try:
+                            record[k] = ast.literal_eval(v)
+                        except (ValueError, SyntaxError):
+                            pass
 
             docs.append(record)
 
