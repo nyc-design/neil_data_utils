@@ -7,12 +7,11 @@ from pymongo.errors import BulkWriteError
 import math
 import ast
 import json
-import logging
+from types import SimpleNamespace
 
 class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
-        self.logger = logger or logging.getLogger(__name__)
-
+        self.logger = logger or SimpleNamespace(info = print, warning = print, error = print, debug = print)
 
     # Function to extract data from a list of responses
     def extract_json_data(self, json: dict, keys: dict, keyset: list[str] | str = []) -> dict:
@@ -128,3 +127,29 @@ class DataUtils:
                 self.logger.error(f"Error on batch {i + 1} of {batches}: {e}")
             
         self.logger.info(f"Finished: {inserted}/{total} documents processed into {mongo_collection}")
+
+
+    # Function to convert a MongoDB collection to a csv
+    def mongodb_to_csv(self, mongo_uri: str, mongo_db: str, mongo_collection: str, csv_path: str, batch_size: int = 1000, filter_query: dict = None, projection: dict = None) -> None:
+        client = MongoClient(mongo_uri)
+        collection = client[mongo_db][mongo_collection]
+
+        query = filter_query or {}
+
+        cursor = collection.find(query, projection) if projection is not None else collection.find(query)
+
+        docs = list(cursor)
+
+        if not docs:
+            self.logger.warning(f"No documents to export from {mongo_collection}")
+            return
+
+        for doc in docs:
+            if '_id' in doc:
+                doc['_id'] = str(doc['_id'])
+
+        df = pd.json_normalize(docs)
+
+        df.to_csv(csv_path, index=False)
+
+        self.logger.info(f"Exported {len(docs)} documents from {mongo_collection} to {csv_path}")
