@@ -55,7 +55,7 @@ class DataUtils:
     
 
     # Function to convert a csv into uploaded documents to MongoDB
-    def csv_to_mongodb(self, csv_path: str, mongo_uri: str, mongo_db: str, mongo_collection: str, dtype_as_str: bool = True, include_empty: bool = False, batch_size: int = 1000, upsert_key: str = None) -> None:
+    def csv_to_mongodb(self, csv_path: str, mongo_uri: str, mongo_db: str, mongo_collection: str, dtype_as_str: bool = True, include_empty: bool = False, batch_size: int = 1000, upsert_keys: str | list[str] = None) -> None:
         df = pd.read_csv(csv_path, dtype=str if dtype_as_str else None)
 
         records = df.where(pd.notna(df), None).to_dict(orient="records")
@@ -69,14 +69,28 @@ class DataUtils:
                 continue
         
             for k, v in list(record.items()):
-                if isinstance(v, str) and v.startswith("[") and v.endswith("]"):
-                    try:
-                        record[k] = json.loads(v)
-                    except (json.JSONDecodeError, TypeError):
-                        try:
-                            record[k] = ast.literal_eval(v)
-                        except (ValueError, SyntaxError):
-                            pass
+                if not isinstance(v, str):
+                    continue
+
+                s = v.strip()
+                if not (s.startswith("[") and s.endswith("]")):
+                    continue
+
+                try:
+                    record[k] = json.loads(s)
+                    continue
+                except Exception:
+                    pass
+
+                try:
+                    record[k] = ast.literal_eval(s)
+                    continue
+                except Exception:
+                    pass
+
+                inner = s[1:-1]
+                parts = [item.strip() for item in inner.split(",") if item.strip()]
+                record[k] = parts
 
             docs.append(record)
 
@@ -91,11 +105,17 @@ class DataUtils:
         batches = math.ceil(total / batch_size)
         inserted = 0
 
+        upsert_keys = [upsert_keys] if isinstance(upsert_keys, str) else upsert_keys
+
         for i in range(batches):
             batch = docs[i * batch_size:(i + 1) * batch_size]
             try:
-                if upsert_key and upsert_key in batch[0]:
-                    ops = [UpdateOne({upsert_key: doc[upsert_key]}, {"$set": doc}, upsert=True) for doc in batch]
+                if upsert_keys and all(key in batch[0] for key in upsert_keys):
+                    ops = []
+                    for doc in batch:
+                        filter = {key: doc[key] for key in upsert_keys}
+                        update = {"$set": doc}
+                        ops.append(UpdateOne(filter, update, upsert=True))
                     result = collection.bulk_write(ops)
                     inserted += result.upserted_count + result.modified_count
                 else:
