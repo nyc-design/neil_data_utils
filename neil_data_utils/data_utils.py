@@ -8,26 +8,60 @@ import math
 import ast
 import json
 from types import SimpleNamespace
+from typing import Any
+from flatten_json import flatten
 
 class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
         self.logger = logger or SimpleNamespace(info = print, warning = print, error = print, debug = print)
 
-    # Function to extract data from a list of responses
-    def extract_json_data(self, json: dict, keys: dict, keyset: list[str] | str = []) -> dict:
+    # Function to extract data from a JSON with a keyset
+    def extract_json_data(self, json_object: dict, keys: dict, keyset: list[str] | str | dict = []) -> dict:
         data = {}
-        if isinstance(keyset, str):
-            keyset = [keyset]
         
+        if not keyset:
+            keyset = list(keys.keys())
+        elif isinstance(keyset, str):
+            keyset = [keyset]
+        elif isinstance(keyset, dict):
+            keyset = list(keyset.keys())
+
         for key, path in keys.items():
             if keyset and key not in keyset:
                 continue
-            value = self.get_nested_value(json, path)
+            value = self.get_nested_value(json_object, path)
             if value is not None:
                 data[key] = value
 
         return data
         
+
+    # Function to extract data from a JSON with a list in the keyset
+    def extract_json_list(self, json_object: dict, listed_keys: dict, keyset: list[str] | str | dict = []) -> dict:
+        data = {}
+
+        if not keyset:
+            keyset = list(listed_keys.keys())
+        elif isinstance(keyset, str):
+            keyset = [keyset]
+        elif isinstance(keyset, dict):
+            keyset = list(keyset.keys())
+
+        for key, value in listed_keys.items():
+            if keyset and key not in keyset:
+                continue
+            numbered_list = self.get_nested_value(json_object, value["master_path"])
+            if not isinstance(numbered_list, list):
+                continue
+            list_data = []
+            for list_item in numbered_list:
+                list_data.append(self.extract_json_data(list_item, value["fields"]))
+            
+            if list_data:
+                data[key] = list_data
+
+        return data
+    
 
     # Function to get a nested value from a dictionary
     def get_nested_value(self, data, path, default = None):
@@ -48,10 +82,99 @@ class DataUtils:
         return data
     
 
+    # Function to organize a keyset
+    def organize_keyset(self, keyset: dict) -> tuple[dict, dict]:
+        flat_keyset = {}
+        grouped = {}
+        listed_keyset = {}
+
+        for key, path in keyset.items():
+            if "numbered_list" not in path:
+                flat_keyset[key] = path
+            else:
+                try:
+                    master_path, sub_path = path.split("numbered_list", 1)
+                    master_path = master_path.rstrip(".")
+                    sub_path = sub_path.lstrip(".")
+                    grouped.setdefault(master_path, [])[key] = sub_path
+                except ValueError:
+                    self.logger.error(f"Invalid path: {path}")
+
+        for master_path, fields in grouped.items():
+            match = next((flat_key for flat_key, flat_path in flat_keyset.items() if flat_path == master_path), None)
+            bucket = match or master_path.rsplit(".", 1)[-1]
+
+            listed_keyset[bucket] = {
+                "master_path": master_path,
+                "fields": fields
+            }
+
+        return flat_keyset, listed_keyset        
+
+
     # Function to extract a domain from a URL
     def extract_domain(self, url: str) -> str:
         return tldextract.extract(url).registered_domain
     
+
+    # Function to flatten a JSON object
+    def flatten_json(self, json: dict, separator: str = ".") -> dict:
+        return flatten(json, separator = separator)
+
+
+    # Function to compare two sets of JSON keys
+    def compare_jsons(self, json1: dict, json2: dict, compare_values: bool = False) -> dict:
+        if compare_values:
+            old_set = set(json1.values())
+            new_set = set(json2.values())
+        else:
+            old_set = set(json1.keys())
+            new_set = set(json2.keys())
+
+        added = new_set - old_set
+        removed = old_set - new_set
+        common = old_set & new_set
+        percent_change = (len(added) + len(removed)) / max(len(old_set), 1) * 100
+
+        return {
+            "added": added,
+            "removed": removed,
+            "common": common,
+            "percent_change": percent_change
+        }
+
+
+    # Function to identify JSON blob with search string
+    def find_json_by_string(self, json_list: list[Any], search: str) -> Any | None:
+        if isinstance(json_list, dict):
+            json_list = [json_list]
+        
+        for blob in json_list:
+            val = self.deep_find_search(blob, search)
+            if val is not None:
+                return val
+            
+        return None
+    
+
+    # Function to find a value in a nested object
+    def deep_find_search(self, obj: Any, search: str) -> Any | None:
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if search in key:
+                    return value
+                found = self.deep_find_search(value, search)
+                if found is not None:
+                    return found
+                
+        elif isinstance(obj, list):
+            for item in obj:
+                found = self.deep_find_search(item, search)
+                if found is not None:
+                    return found
+                
+        return None
+
 
     # Function to convert a csv into uploaded documents to MongoDB
     def csv_to_mongodb(self, csv_path: str, mongo_uri: str, mongo_db: str, mongo_collection: str, dtype_as_str: bool = True, include_empty: bool = False, batch_size: int = 1000, upsert_keys: str | list[str] = None) -> None:
