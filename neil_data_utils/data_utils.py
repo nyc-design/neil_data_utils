@@ -131,16 +131,21 @@ class DataUtils:
         listed_keyset = {}
 
         for key, path in keyset.items():
-            if "numbered_list" in path:
+            if path.endswith(".numbered_list"):
+                modified_path = path.rsplit(".", 1)[0]
+            else:
+                modified_path = path
+
+            if "numbered_list" in modified_path:
                 try:
-                    master_path, sub_path = path.split("numbered_list", 1)
+                    master_path, sub_path = modified_path.split("numbered_list", 1)
                     master_path = master_path.rstrip(".")
                     sub_path = sub_path.lstrip(".")
                     grouped.setdefault(master_path, {})[key] = sub_path
                 except ValueError:
                     self.logger.error(f"Invalid path: {path}")
             else:
-                flat_keyset[key] = path
+                flat_keyset[key] = modified_path
 
         for master_path, fields in grouped.items():
             match = next((flat_key for flat_key, flat_path in flat_keyset.items() if flat_path == master_path), None)
