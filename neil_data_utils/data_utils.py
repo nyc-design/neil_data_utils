@@ -136,7 +136,7 @@ class DataUtils:
                     master_path, sub_path = path.split("numbered_list", 1)
                     master_path = master_path.rstrip(".")
                     sub_path = sub_path.lstrip(".")
-                    grouped.setdefault(master_path, [])[key] = sub_path
+                    grouped.setdefault(master_path, {})[key] = sub_path
                 except ValueError:
                     self.logger.error(f"Invalid path: {path}")
             else:
@@ -145,6 +145,9 @@ class DataUtils:
         for master_path, fields in grouped.items():
             match = next((flat_key for flat_key, flat_path in flat_keyset.items() if flat_path == master_path), None)
             bucket = match or master_path.rsplit(".", 1)[-1]
+
+            if match:
+                flat_keyset.pop(match)
 
             listed_keyset[bucket] = {
                 "master_path": master_path,
