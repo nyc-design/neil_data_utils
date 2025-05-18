@@ -10,6 +10,9 @@ import json
 from types import SimpleNamespace
 from typing import Any
 from flatten_json import flatten
+from datetime import datetime
+from dateutil.parser import parse as parse_date
+from collections import deque
 
 class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
@@ -89,9 +92,7 @@ class DataUtils:
         listed_keyset = {}
 
         for key, path in keyset.items():
-            if "numbered_list" not in path:
-                flat_keyset[key] = path
-            else:
+            if "numbered_list" in path:
                 try:
                     master_path, sub_path = path.split("numbered_list", 1)
                     master_path = master_path.rstrip(".")
@@ -99,6 +100,8 @@ class DataUtils:
                     grouped.setdefault(master_path, [])[key] = sub_path
                 except ValueError:
                     self.logger.error(f"Invalid path: {path}")
+            else:
+                flat_keyset[key] = path
 
         for master_path, fields in grouped.items():
             match = next((flat_key for flat_key, flat_path in flat_keyset.items() if flat_path == master_path), None)
@@ -109,8 +112,82 @@ class DataUtils:
                 "fields": fields
             }
 
-        return flat_keyset, listed_keyset        
+        return flat_keyset, listed_keyset
+    
 
+    # Function to convert timekeys to a timestamp
+    def convert_timekeys(self, json_object: dict | list, timekey_str: str = "timekey", combine_function = None, out_key: str = "timestamp") -> dict | list:
+        if combine_function is None:
+            combine_function = self.time_combine
+
+        queue = deque([json_object])
+
+        while queue:
+            node = queue.popleft()
+            if isinstance(node, dict):
+                fields: dict[str, object] = {}
+                for key in list(node):
+                    if timekey_str in key:
+                        fields[key] = node.pop(key)
+
+                if fields:
+                    timestamp = None
+                    try:
+                        timestamp = combine_function(fields)
+                    except Exception as e:
+                        self.logger.error(f"Error combining timekeys on {fields}: {e}")
+
+                    if timestamp is None:
+                        node.update(fields)
+                    else:
+                        node[out_key] = timestamp
+                
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        queue.append(value)
+
+            elif isinstance(node, list):
+                for item in node:
+                    if isinstance(item, (dict, list)):
+                        queue.append(item)
+
+        return json_object
+    
+
+    # Function to combine timekeys
+    def time_combine(self, fields: dict) -> datetime | None:
+        for key, value in fields.items():
+            if "date" in key.lower() and isinstance(value, str):
+                try:
+                    date_try = parse_date(value)
+                    return date_try
+                except Exception:
+                    continue
+
+        comps: dict[str, int] = {}
+        for part in ["year", "month", "day", "hour", "minute", "second"]:
+            for key, value in fields.items():
+                if part in key.lower():
+                    try:
+                        comps[part] = int(value)
+                    except (ValueError, TypeError):
+                        pass
+                    break
+
+        if not any(part in comps for part in ["year", "month", "day"]):
+            return None
+        
+        timestamp = datetime(
+            year = comps.get("year", datetime.utcnow().year),
+            month = comps.get("month", 1),
+            day = comps.get("day", 1),
+            hour = comps.get("hour", 0),
+            minute = comps.get("minute", 0),
+            second = comps.get("second", 0),
+            )
+        
+        return timestamp
+            
 
     # Function to extract a domain from a URL
     def extract_domain(self, url: str) -> str:
