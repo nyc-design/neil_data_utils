@@ -18,9 +18,37 @@ class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
         self.logger = logger or SimpleNamespace(info = print, warning = print, error = print, debug = print)
 
+
+    # Master function to extract data from a JSON
+    def extract_json(self, json_object: dict, keys: dict, keyset: list[str] | str | dict = [], convert_timekeys: bool = True, timekey_str: str = "timekey", out_key: str = "timestamp") -> dict:
+        data: dict[str, list[dict]] = {}
+
+        if not keyset:
+            keyset = list(keys.keys())
+        elif isinstance(keyset, str):
+            keyset = [keyset]
+        elif isinstance(keyset, dict):
+            keyset = list(keyset.keys())
+
+        flat_keys, nested_keys = self.organize_keyset(keys)
+
+        flat_data = self.extract_json_data(json_object, flat_keys)
+        nested_data = self.extract_json_list(json_object, nested_keys)
+
+        
+        unconverted_data = {**flat_data, **nested_data}
+
+        if convert_timekeys:
+            data = self.convert_timekeys(unconverted_data, timekey_str = timekey_str, out_key = out_key)
+        else:
+            data = unconverted_data
+
+        return data
+
+
     # Function to extract data from a JSON with a keyset
     def extract_json_data(self, json_object: dict, keys: dict, keyset: list[str] | str | dict = []) -> dict:
-        data = {}
+        data: dict[str, list[dict]] = {}
         
         if not keyset:
             keyset = list(keys.keys())
@@ -37,11 +65,11 @@ class DataUtils:
                 data[key] = value
 
         return data
-        
+
 
     # Function to extract data from a JSON with a list in the keyset
     def extract_json_list(self, json_object: dict, listed_keys: dict, keyset: list[str] | str | dict = []) -> dict:
-        data = {}
+        data: dict[str, list[dict]] = {}
 
         if not keyset:
             keyset = list(listed_keys.keys())
@@ -56,12 +84,23 @@ class DataUtils:
             numbered_list = self.get_nested_value(json_object, value["master_path"])
             if not isinstance(numbered_list, list):
                 continue
-            list_data = []
+
+            rows: list[dict] = []
+            flat_keys, nested_keys = self.organize_keyset(value["fields"])
+
             for list_item in numbered_list:
-                list_data.append(self.extract_json_data(list_item, value["fields"]))
-            
-            if list_data:
-                data[key] = list_data
+                flat_data = self.extract_json_data(list_item, flat_keys)
+
+                if nested_keys:
+                    nested_data = self.extract_json_list(list_item, nested_keys)
+                    for second_rows in nested_data.values():
+                        for second_row in second_rows:
+                            rows.append({**flat_data, **second_row})
+                else:
+                    rows.append(flat_data)
+
+            if rows:
+                data[key] = rows
 
         return data
     
