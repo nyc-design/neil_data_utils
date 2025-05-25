@@ -14,5 +14,8 @@ requires-python = ">=3.9"
 dependencies = [
     "tldextract>=3.4.0",
     "flatten-json>=0.1.14",
+    "pandas",
+    "pymongo",
+    "python-dateutil",
     "neil-logger @ git+https://github.com/nyc-design/neil_logger.git"
 ]
