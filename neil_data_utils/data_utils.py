@@ -10,7 +10,7 @@ import json
 from types import SimpleNamespace
 from typing import Any
 from flatten_json import flatten
-from datetime import datetime
+from datetime import datetime, timezone
 from dateutil.parser import parse as parse_date
 from collections import deque
 
@@ -225,7 +225,7 @@ class DataUtils:
             return None
         
         timestamp = datetime(
-            year = comps.get("year", datetime.utcnow().year),
+            year = comps.get("year", datetime.now(timezone.utc).year),
             month = comps.get("month", 1),
             day = comps.get("day", 1),
             hour = comps.get("hour", 0),
