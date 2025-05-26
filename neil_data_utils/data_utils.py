@@ -14,6 +14,7 @@ from flatten_json import flatten
 from datetime import datetime, timezone
 from dateutil.parser import parse as parse_date
 from collections import deque
+from google.cloud import storage
 
 class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
@@ -415,3 +416,24 @@ class DataUtils:
         df.to_csv(csv_path, index=False)
 
         self.logger.info(f"Exported {len(docs)} documents from {mongo_collection} to {csv_path}")
+
+
+    # Function to get a blob from GCS
+    def get_blob(self, path: str, gcs_credentials_path: str = None):
+        if not path.startswith("GCS:"):
+            raise ValueError("Path must start with GCS:")
+
+        gcs_path = path.split("GCS:")[1]
+        gcs_parts = gcs_path.split("/", 1)
+        gcs_bucket = gcs_parts[0]
+        gcs_path = gcs_parts[1] if len(gcs_parts) > 1 else ""
+
+        if gcs_credentials_path:
+            client = storage.Client.from_service_account_json(gcs_credentials_path)
+        else:
+            client = storage.Client()
+
+        bucket = client.bucket(gcs_bucket)
+        blob = bucket.blob(gcs_path)
+
+        return blob

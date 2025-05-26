@@ -16,6 +16,7 @@ dependencies = [
     "flatten-json>=0.1.14",
     "pandas",
     "pymongo",
+    "google-cloud-storage",
     "python-dateutil",
     "neil-logger @ git+https://github.com/nyc-design/neil_logger.git"
 ]
