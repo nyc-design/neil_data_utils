@@ -4,6 +4,7 @@ import re
 import pandas as pd
 from pymongo import MongoClient, UpdateOne
 from pymongo.errors import BulkWriteError
+from bson import ObjectId
 import math
 import ast
 import json
@@ -298,6 +299,20 @@ class DataUtils:
                     return found
                 
         return None
+
+
+    # Function to convert an output to a JSON type-checked payload
+    def jsonify(self, obj: Any) -> Any:
+        if isinstance(obj, list):
+            return [self.jsonify(x) for x in obj]
+        elif isinstance(obj, dict):
+            return {k: self.jsonify(v) for k, v in obj.items()}
+        elif isinstance(obj, ObjectId):
+            return str(obj)
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        else:
+            return obj
 
 
     # Function to convert a csv into uploaded documents to MongoDB
