@@ -437,3 +437,22 @@ class DataUtils:
         blob = bucket.blob(gcs_path)
 
         return blob
+
+
+    # Function to list blobs in a GCS bucket
+    def list_blobs(self, path: str, gcs_credentials_path: str = None):
+        if not path.startswith("GCS:"):
+            raise ValueError("Path must start with GCS:")
+        gcs_path = path.split("GCS:")[1]
+        gcs_parts = gcs_path.split("/", 1)
+        gcs_bucket = gcs_parts[0]
+        gcs_prefix = gcs_parts[1] if len(gcs_parts) > 1 else ""
+
+        if gcs_credentials_path:
+            client = storage.Client.from_service_account_json(gcs_credentials_path)
+        else:
+            client = storage.Client()
+
+        bucket = client.bucket(gcs_bucket)
+
+        return bucket.list_blobs(prefix=gcs_prefix)
