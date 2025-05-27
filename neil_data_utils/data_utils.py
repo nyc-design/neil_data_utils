@@ -15,10 +15,15 @@ from datetime import datetime, timezone
 from dateutil.parser import parse as parse_date
 from collections import deque
 from google.cloud import storage
+import tempfile
+import shutil
+import os
+
 
 class DataUtils:
     def __init__(self, logger: UniversalLogger = None):
         self.logger = logger or SimpleNamespace(info = print, warning = print, error = print, debug = print)
+        self.temp_dirs = []
 
 
     # Master function to extract data from a JSON
@@ -456,3 +461,30 @@ class DataUtils:
         bucket = client.bucket(gcs_bucket)
 
         return bucket.list_blobs(prefix=gcs_prefix)
+    
+
+    def path_to_temp(self, path: str, gcs_credentials_path: str = None, alt_filename: str = None, temp_base: str = None):
+        if not temp_base:
+            temp_base = tempfile.gettempdir()
+
+        temp_dir = tempfile.mkdtemp(dir=temp_base)
+        self.temp_dirs.append(temp_dir)
+
+        filename = alt_filename or os.path.basename(path)
+
+        temp_path = os.path.join(temp_dir, filename)
+
+        if path.startswith("GCS:"):
+            blob = self.get_blob(path, gcs_credentials_path)
+            blob.download_to_filename(temp_path)
+        else:
+            shutil.copy2(path, temp_path)
+
+        return temp_path
+    
+
+    def cleanup_temp(self):
+        for temp_dir in self.temp_dirs:
+            shutil.rmtree(temp_dir)
+
+        self.temp_dirs = []
