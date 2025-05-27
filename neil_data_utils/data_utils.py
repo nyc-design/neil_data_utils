@@ -445,7 +445,7 @@ class DataUtils:
 
 
     # Function to list blobs in a GCS bucket
-    def list_blobs(self, path: str, gcs_credentials_path: str = None):
+    def list_blobs(self, path: str, gcs_credentials_path: str = None, basename_prefix: str = ""):
         if not path.startswith("GCS:"):
             raise ValueError("Path must start with GCS:")
         gcs_path = path.split("GCS:")[1]
@@ -460,7 +460,14 @@ class DataUtils:
 
         bucket = client.bucket(gcs_bucket)
 
-        return bucket.list_blobs(prefix=gcs_prefix)
+        blobs = bucket.list_blobs(prefix=gcs_prefix)
+
+        if basename_prefix:
+            blobs = [blob for blob in blobs if os.path.basename(blob.name).startswith(basename_prefix)]
+        else:
+            blobs = list(blobs)
+
+        return blobs
     
 
     def path_to_temp(self, path: str, gcs_credentials_path: str = None, alt_filename: str = None, temp_base: str = None):
